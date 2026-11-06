@@ -1,0 +1,15 @@
+name = "tulpar-ai-gateway"
+main = "gateway.mjs"
+compatibility_date = "2026-08-01"
+
+[vars]
+ALLOWED_ORIGINS = "https://mustafa7677.github.io,http://localhost:8080"
+MODEL_PRIORITY = "groq,gemini,openrouter,mistral,deepseek,openai,together,cerebras,fireworks"
+MODEL_TIMEOUT_MS = "25000"
+
+# Optional: configure Cloudflare's ratelimit binding on your plan.
+# [[unsafe.bindings]]
+# name = "RATE_LIMITER"
+# type = "ratelimit"
+# namespace_id = "1001"
+# simple = { limit = 20, period = 60 }

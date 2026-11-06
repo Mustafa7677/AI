@@ -1,48 +1,67 @@
-# TULPAR AI — Original Local Engine
+# TULPAR AI — Multi-Model Auto Failover + Own Local Core
 
-**Live site after GitHub Pages is enabled:** https://mustafa7677.github.io/AI/
+**Website** (after GitHub Pages completes deployment): https://mustafa7677.github.io/AI/
 
-This is an original **lightweight** AI assistant written from scratch. **It does not use Qwen, a remote LLM API, or pretend to be a ChatGPT-scale model.** The local TULPAR Core provides multilingual intent recognition (Kazakh, Russian, English), trainable question–answer retrieval using character n-gram vectors, safe mathematical expression evaluation, extractive summarisation, local knowledge retrieval from uploaded documents, and private on-device memory. Quality is limited compared with modern pretrained generative language models.
+TULPAR AI has two engines: (1) **TULPAR Core** — our own small offline assistant, not a full-scale generative LLM, and (2) an **optional Cloudflare Worker gateway** to multiple real cloud AI models. The website switches provider on rate limits (429), availability errors, upstream timeouts or empty responses. When no cloud model is available, **Auto** mode explicitly falls back to the offline assistant; **Cloud** mode surfaces the error instead. **Local** mode stays offline. Cloud provider inference requires credentials, and the model vendors may charge you.
 
-## Features
+## Models and priority
 
-- Mobile-friendly PWA, light/dark mode, chat history (localStorage)
-- Own JS learning/inference engine (`core.mjs`), **no model API key**
-- Teachable answers: `Үйрет: сұрақ => жауап`, `Научи: вопрос => ответ`, `Teach: question => answer`
-- Remember snippets: `Есте сақта: ...`, `Запомни: ...`, `Remember: ...`
-- Basic calculations, study suggestions, project ideas, basic writing/code guidance
-- TXT, MD, JSON, CSV document retrieval; PDF text extraction through PDF.js **requires network on first use**
-- Browser speech recognition where supported; language selector, dark/light theme
-- Local JSON export and wipe controls
+The gateway supports nine independent configurable providers:
 
-## Run & test
+1. Groq (`GROQ_API_KEY`, `GROQ_MODEL`, default `openai/gpt-oss-120b`)
+2. Gemini (`GEMINI_API_KEY`, `GEMINI_MODEL`)
+3. OpenRouter (`OPENROUTER_API_KEY`, `OPENROUTER_MODEL`, default `openrouter/free`)
+4. Mistral (`MISTRAL_API_KEY`, `MISTRAL_MODEL`)
+5. DeepSeek (`DEEPSEEK_API_KEY`, `DEEPSEEK_MODEL`)
+6. OpenAI (`OPENAI_API_KEY`, `OPENAI_MODEL`)
+7. Together (`TOGETHER_API_KEY`, `TOGETHER_MODEL`)
+8. Cerebras (`CEREBRAS_API_KEY`, `CEREBRAS_MODEL`)
+9. Fireworks (`FIREWORKS_API_KEY`, `FIREWORKS_MODEL`)
 
-No dependency installation is required to run the site:
+Only configured providers are tried, in `MODEL_PRIORITY` order. Providers have different model names, prices and quotas; update model identifiers when providers change their offerings. A provider without API credentials is **not** active. If provider streaming fails *after tokens have been delivered*, TULPAR **does not splice** an unrelated model's output into the same answer. It tells the user to retry.
 
-```bash
-python3 -m http.server 8080
-# Open http://localhost:8080
+## Deploy in two layers
+
+### 1. Website (GitHub Pages)
+
+GitHub → Settings → Pages → Deploy from branch → `main` → `/(root)`. The public PWA works in **Local mode without credentials**. GitHub Pages **cannot run a server** or hide cloud API keys.
+
+### 2. Secure Cloudflare Worker (required for multi-model cloud chat)
+
+You need a Cloudflare account and at least one real provider API key. **Never put any vendor API key inside GitHub, the frontend or the URL.** Install Node 20+:
+
+```sh
+cd server
+npx wrangler login
+npx wrangler secret put TULPAR_ACCESS_TOKEN
+npx wrangler secret put GROQ_API_KEY
+# Optional additional providers:
+npx wrangler secret put GEMINI_API_KEY
+npx wrangler secret put OPENROUTER_API_KEY
+npx wrangler secret put MISTRAL_API_KEY
+npx wrangler secret put DEEPSEEK_API_KEY
+npx wrangler secret put OPENAI_API_KEY
+npx wrangler secret put TOGETHER_API_KEY
+npx wrangler secret put CEREBRAS_API_KEY
+npx wrangler secret put FIREWORKS_API_KEY
+npx wrangler deploy
 ```
 
-Requires Node 18+ for tests:
+Set `TULPAR_ACCESS_TOKEN` to a **random 32+ character secret**, distinct from provider keys. Configure at least **one** provider. The Worker URL returned by Wrangler should look like `https://tulpar-ai-gateway.<your-account>.workers.dev`. In the site's **Settings** enter that URL **and the TULPAR access token**, then select **Auto** and click **Save and test**. The URL persists in browser localStorage; the access token persists only within that browser tab's sessionStorage. Cloud chat messages are sent to the Worker and then to the selected model provider.
 
-```bash
+**Security:** The Worker rejects requests from unapproved browser origins, requires an owner access token, validates message size and roles, returns only safe metadata, and never returns provider secrets. Configure `ALLOWED_ORIGINS` in `server/wrangler.toml` to include your production GitHub Pages origin (default is `https://mustafa7677.github.io`). An origin allowlist is not authentication: keep your access token private. For a public multi-user service, replace the owner token with authenticated users and add per-user quotas, Cloudflare WAF and real rate limits (an optional `RATE_LIMITER` binding is documented in `wrangler.toml`).
+
+### Test
+
+```sh
 npm test
+python3 -m http.server 8080
 ```
 
-## Publish to GitHub Pages
+The tests simulate a rate-limited first provider, fallback to the second, streaming, access control, input validation and offline TULPAR Core. They **do not** verify live model calls without actual credentials. This repo does **not** contain secrets or deploy a Worker automatically.
 
-Repository Settings → Pages → Build and deployment → Deploy from a branch → `main` → `/(root)` → Save. It may take some time to publish. **GitHub Pages only hosts this browser-based version**, not a Python AI server.
+## Privacy and capabilities
 
-## Limitations & privacy
+TULPAR Core (`core.mjs`) still supports Kazakh/Russian/English, safe arithmetic, local retrievable knowledge, teachable Q&A, document text extraction and local chat history. The cloud gateway supports streamed text chat and model failover. **Image generation, live web search, remote vision, multimodal uploads and universal provider support are not enabled by this router.** PDF text extraction depends on PDF.js, and browser speech recognition is subject to browser/device support. Important answers may be inaccurate. Sensitive chats should not be entered into third-party model services without reviewing their privacy terms.
 
-This project **is not a general-purpose generative LLM**: it cannot reliably answer arbitrary knowledge questions, perform accurate translation, recognise image contents, or reason like a frontier model. The app stores chats, memorised facts, learned examples and uploaded document text in this device's localStorage. Do not upload sensitive documents on shared devices. No authentication or cloud sync is present. PDF.js and the optional Google Font are third-party network assets and offline PDF extraction might not work until cached. Browser speech recognition may transmit audio to a device/browser speech service; it is not necessarily offline. The site itself does not transmit chat prompts to our servers.
-
-## Next stages for stronger original AI
-
-1. Curate permissioned Kazakh/Russian/English corpora with evaluation datasets.
-2. Implement and train a small transformer language model from scratch (requires GPU compute and sustained engineering).
-3. Evaluate, fine-tune and deploy a real inference service with account security and abuse controls.
-4. Connect the PWA to the API using signed requests; add explicit consent and data retention controls.
-
-Copyright (c) 2026 TULPAR AI contributors. No additional license granted; contact the author before reuse.
+Copyright (c) 2026 TULPAR AI contributors.
