@@ -1,0 +1,8 @@
+# No secrets or generated build files
+.env
+.env.*
+!.env.example
+node_modules/
+*.db
+__pycache__/
+.DS_Store

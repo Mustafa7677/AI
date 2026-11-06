@@ -1,0 +1,7 @@
+import {test} from 'node:test';import assert from 'node:assert/strict';import {TulparCore,calculate,langOf,summarize,cosine,vector} from '../core.mjs';
+test('arithmetic parses nested expressions without eval',()=>{assert.equal(calculate('(25+17)*4'),168);assert.equal(calculate('2^3'),8);assert.equal(calculate('10/0'),null);assert.equal(calculate('globalThis'),null);assert.equal(calculate('1+bad'),null);});
+test('detects all three languages',()=>{assert.equal(langOf('Сәлем қалайсың?'),'kk');assert.equal(langOf('привет как дела'),'ru');assert.equal(langOf('Hello there'),'en');});
+test('vector similarity rewards similar text',()=>{assert.ok(cosine(vector('hello world'),vector('hello world'))>0.99);assert.ok(cosine(vector('hello'),vector('banana'))<0.4);});
+test('trilingual assistant computes and answers identity',async()=>{const a=new TulparCore();assert.match(await a.reply('Есепте: 2 + 3 * 4'),/14/);assert.match(await a.reply('Who are you?'),/TULPAR Core/);assert.match(await a.reply('Сәлем'),/Сәлем/);});
+test('teaching works without any external LLM',async()=>{const a=new TulparCore();assert.ok((await a.reply('Teach: rainbow horse => Tulpar')).length>0);assert.equal(await a.reply('rainbow horse'),'Tulpar');});
+test('extractive summary produces bounded output',()=>{const s=summarize('The moon is bright. The moon orbits Earth. The sea has waves. The moon changes the tides.','en');assert.ok(s.length>0);assert.ok(s.length<200);});
