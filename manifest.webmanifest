@@ -1,5 +1,5 @@
 {
-  "name": "TULPAR AI — Multi-Model Assistant",
+  "name": "TULPAR AI — Multi-Model AI",
   "short_name": "TULPAR AI",
   "id": "./",
   "start_url": "./",
@@ -8,7 +8,7 @@
   "background_color": "#08111b",
   "theme_color": "#08111b",
   "lang": "kk",
-  "description": "Original local TULPAR Core with optional live multi-provider model routing",
+  "description": "Offline TULPAR Core with optional secure multi-model cloud gateway",
   "icons": [
     {
       "src": "./icon.svg",

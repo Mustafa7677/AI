@@ -6,6 +6,7 @@ compatibility_date = "2026-08-01"
 ALLOWED_ORIGINS = "https://mustafa7677.github.io,http://localhost:8080"
 MODEL_PRIORITY = "groq,gemini,openrouter,mistral,deepseek,openai,together,cerebras,fireworks"
 MODEL_TIMEOUT_MS = "25000"
+STREAM_IDLE_TIMEOUT_MS = "45000"
 
 # Optional: configure Cloudflare's ratelimit binding on your plan.
 # [[unsafe.bindings]]

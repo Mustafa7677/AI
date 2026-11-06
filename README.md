@@ -1,8 +1,18 @@
-# TULPAR AI — Multi-Model Auto Failover + Own Local Core
+# TULPAR AI v3.0 — Resilient Multi-Model Router + Original Offline Core
 
 **Website** (after GitHub Pages completes deployment): https://mustafa7677.github.io/AI/
 
 TULPAR AI has two engines: (1) **TULPAR Core** — our own small offline assistant, not a full-scale generative LLM, and (2) an **optional Cloudflare Worker gateway** to multiple real cloud AI models. The website switches provider on rate limits (429), availability errors, upstream timeouts or empty responses. When no cloud model is available, **Auto** mode explicitly falls back to the offline assistant; **Cloud** mode surfaces the error instead. **Local** mode stays offline. Cloud provider inference requires credentials, and the model vendors may charge you.
+
+## What changed in v3.0
+
+- **Stop generation:** cancels the active browser request without silently falling back to a different provider.
+- **Retry the most recent answer:** removes only the latest user/assistant pair from local history, then resends the user prompt.
+- **Explainable model routing:** chat now shows the selected provider and previous failed attempts (such as Groq 429 → Gemini).
+- **More resilient streaming:** separate startup and idle timeouts, automatic failover for 429/5xx and empty first responses, readable interruption after content starts.
+- **Local backup import:** export chat history and import a validated JSON backup on a different device. Import replaces existing local chats after a confirmation. Keep backups private.
+- **Mobile PWA cache refresh:** v3 versioned service worker, network-first page navigation, no HTML fallback for JS assets.
+- **23 local automated tests** using mocked cloud providers and offline TULPAR Core.
 
 ## Models and priority
 
@@ -58,10 +68,16 @@ npm test
 python3 -m http.server 8080
 ```
 
-The tests simulate a rate-limited first provider, fallback to the second, streaming, access control, input validation and offline TULPAR Core. They **do not** verify live model calls without actual credentials. This repo does **not** contain secrets or deploy a Worker automatically.
+The 23 tests simulate a rate-limited provider, fallback after 5xx and empty responses, startup and idle streaming, cancel, CORS, access control, JSON backup validation and offline TULPAR Core. They **do not** verify live model calls without actual credentials. This repo does **not** contain secrets or deploy a Worker automatically.
 
 ## Privacy and capabilities
 
-TULPAR Core (`core.mjs`) still supports Kazakh/Russian/English, safe arithmetic, local retrievable knowledge, teachable Q&A, document text extraction and local chat history. The cloud gateway supports streamed text chat and model failover. **Image generation, live web search, remote vision, multimodal uploads and universal provider support are not enabled by this router.** PDF text extraction depends on PDF.js, and browser speech recognition is subject to browser/device support. Important answers may be inaccurate. Sensitive chats should not be entered into third-party model services without reviewing their privacy terms.
+TULPAR Core (`core.mjs`) still supports Kazakh/Russian/English, safe arithmetic, local retrievable knowledge, teachable Q&A, document text extraction and local chat history. The cloud gateway supports streamed text chat, model failover, visible route diagnostics and client cancellation. **Image generation, live web search, remote vision, multimodal uploads and universal provider support are not enabled by this router.** PDF text extraction depends on PDF.js, and browser speech recognition is subject to browser/device support. Important answers may be inaccurate. Sensitive chats should not be entered into third-party model services without reviewing their privacy terms.
 
 Copyright (c) 2026 TULPAR AI contributors.
+
+## Troubleshooting GitHub Pages
+
+The static site is deployed separately from the Worker. GitHub's Pages builds and deployments appear under **Actions → pages build and deployment**. If `build` succeeds but `deploy` fails with `Deployment failed, try again later`, the artifact was built; that error does not by itself prove a JavaScript problem. Retry the failed GitHub Actions run or check GitHub Pages platform status. Do not enter `mustafa7677.github.io/AI/` as a **Custom domain**. Leave Custom domain blank. Select `main` and `/ (root)` under Pages settings.
+
+For production, use dedicated per-user authentication, enforce server-side abuse quotas and spending caps, rotate compromised tokens, and protect API credentials only within the Worker. A public GitHub Pages front end cannot hide API keys.

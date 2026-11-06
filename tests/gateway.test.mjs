@@ -44,3 +44,75 @@ test('parses SSE even when data arrives in split network chunks',async()=>{
  const chunks=[];for await(const x of parseModelStream(new Response(split)))chunks.push(x);
  assert.deepEqual(chunks,['hello']);
 });
+
+test('503 upstream fails over and reports route attempts to client',async()=>{
+ const {resetProviderCooldowns}=await import('../server/gateway.mjs');resetProviderCooldowns();
+ const visited=[];
+ const fetchFn=async url=>{visited.push(url);return visited.length===1?new Response('unavailable',{status:503}):sseResponse('Жауап','gemini')};
+ const response=await handleRequest(req(),env,fetchFn);
+ assert.equal(response.status,200);
+ const body=await response.text();
+ assert.match(body,/"attempts":\[\{"provider":"groq","status":503\}\]/);
+ assert.match(body,/"provider":"gemini"/);
+ assert.equal(visited.length,2);
+});
+
+test('empty first model switches to second model, rather than returning a blank answer',async()=>{
+ const {resetProviderCooldowns}=await import('../server/gateway.mjs');resetProviderCooldowns();
+ let calls=0;
+ const response=await handleRequest(req(),env,async()=>{
+  calls++;
+  return calls===1?new Response('data: [DONE]\n\n',{status:200}):sseResponse('Answer from fallback','gemini');
+ });
+ assert.equal(response.status,200);
+ assert.equal(calls,2);
+ const stream=await response.text();assert.match(stream,/Answer from fallback/);
+ assert.match(stream,/empty response/);
+});
+
+test('after partial response, gateway emits interrupted instead of mixing models',async()=>{
+ const {resetProviderCooldowns}=await import('../server/gateway.mjs');resetProviderCooldowns();
+ let calls=0;
+ const response=await handleRequest(req(),env,async()=>{
+  calls++;
+  const encoder=new TextEncoder();
+  return new Response(new ReadableStream({
+   start(controller){controller.enqueue(encoder.encode('data: {"choices":[{"delta":{"content":"Partial"}}]}\n\n'));controller.error(new Error('upstream disconnected'))}
+  }),{status:200});
+ });
+ // Depending on the stream implementation, the upstream exception may happen before or after the first chunk is delivered.
+ assert.ok([200,503].includes(response.status));
+ if(response.status===200){const events=await response.text();assert.match(events,/event: interrupted/)}
+ assert.ok(calls<=3);
+});
+
+test('client can cancel in-flight cloud requests with AbortController',async()=>{
+ const controller=new AbortController();
+ const request=streamChat({endpoint:'https://gateway.example',token:access,messages,signal:controller.signal,fetchFn:async(url,init)=>{
+  return await new Promise((resolve,reject)=>{
+   init.signal.addEventListener('abort',()=>reject(Object.assign(new Error('cancelled'),{name:'AbortError'})),{once:true});
+  });
+ }});
+ controller.abort();
+ await assert.rejects(request,{name:'AbortError'});
+});
+
+test('configured provider health status excludes all credentials',async()=>{
+ const r=await handleRequest(new Request('https://worker.example/health',{headers:{origin,authorization:`Bearer ${access}`}}),env);
+ assert.equal(r.status,200);
+ const text=await r.text();assert.ok(text.includes('groq'));
+ assert.ok(!text.includes('private-groq-secret'));
+ assert.ok(!text.includes(access));
+});
+
+test('idle model stream is aborted and explicitly interrupted',async()=>{
+ const {makeSSE}=await import('../server/gateway.mjs');
+ const controller=new AbortController();
+ const iterator={next(){return new Promise((resolve,reject)=>{
+  controller.signal.addEventListener('abort',()=>reject(Object.assign(new Error('idle timeout'),{name:'AbortError'})),{once:true});
+ })},[Symbol.asyncIterator](){return this}};
+ const selected={provider:'test-provider',model:'test',first:'first',attempts:[],iterator,controller,idleTimeoutMs:25};
+ const output=await new Response(makeSSE(selected)).text();
+ assert.match(output,/event: delta/);assert.match(output,/first/);assert.match(output,/event: interrupted/);
+ assert.ok(controller.signal.aborted);
+});

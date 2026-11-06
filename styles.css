@@ -10,3 +10,11 @@
 .modal{max-height:min(90dvh,850px);overflow:auto}.gateway-settings .setting-btn{color:var(--accent)}
 .local-tag{max-width:205px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 @media(max-width:480px){.local-tag{max-width:115px}.modal{padding:15px}.gateway-settings{padding:10px}}
+
+/* v3.0: response lifecycle + provider transparency */
+.stop-btn{background:#7c2738;color:#fff;border:1px solid #ce6777;border-radius:10px;width:35px;height:35px;font-size:16px;font-weight:900;flex-shrink:0}
+.stop-btn:hover{background:#ac3047}.send-btn:disabled{opacity:.35;cursor:not-allowed}
+.composer-feedback{display:flex;justify-content:space-between;align-items:center;gap:12px;min-height:26px;padding:4px 4px 0}
+.retry-btn{background:transparent;color:var(--accent);font-size:11px;border:0;padding:5px 2px}
+.route-status{font-size:10px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%;text-align:right}
+@media(max-width:480px){.composer-feedback{flex-wrap:wrap;gap:4px}.route-status{font-size:9px}}

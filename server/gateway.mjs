@@ -59,8 +59,10 @@ function validateMessages(data){
   return cleaned;
 }
 function cooldownProvider(p,code,retryHeader){
-  const retry=Number(retryHeader||0);
-  const secs=code===429?(Number.isFinite(retry)&&retry>0?Math.min(300,retry):45):[401,403].includes(code)?300:20;
+  const seconds=Number(retryHeader);
+  const dateWait=retryHeader&&!Number.isFinite(seconds)?(Date.parse(retryHeader)-Date.now())/1000:NaN;
+  const retry=Number.isFinite(seconds)&&seconds>0?seconds:dateWait;
+  const secs=code===429?(Number.isFinite(retry)&&retry>0?Math.min(300,Math.ceil(retry)):45):[401,403].includes(code)?300:20;
   cooldown.set(p.id,Date.now()+secs*1000);
 }
 function openAIRequest(p,key,messages){
@@ -94,6 +96,7 @@ export async function* parseModelStream(response,protocol='openai'){
     }
   }finally{reader.releaseLock();try{await reader.cancel()}catch{}}
 }
+export function resetProviderCooldowns(){cooldown.clear()}
 export async function selectModel(env,messages,fetchFn=fetch){
   const providers=listProviders(env); if(!providers.length)return {error:'No model provider credentials configured',status:503};
   const errors=[];
@@ -110,8 +113,10 @@ export async function selectModel(env,messages,fetchFn=fetch){
       }
       const iterator=parseModelStream(upstream,p.protocol)[Symbol.asyncIterator]();
       const first=await iterator.next();
-      if(first.done||!first.value){errors.push({provider:p.id,reason:'empty response'});clearTimeout(timer);continue}
-      return {provider:p.id,model:p.modelId,first:first.value,iterator,controller,timer};
+      if(first.done||!first.value){errors.push({provider:p.id,reason:'empty response'});cooldownProvider(p,503);clearTimeout(timer);continue}
+      clearTimeout(timer);
+      const idleTimeoutMs=Math.max(10000,Math.min(180000,Number(env.STREAM_IDLE_TIMEOUT_MS)||45000));
+      return {provider:p.id,model:p.modelId,first:first.value,iterator,controller,idleTimeoutMs,attempts:errors};
     }catch(e){
       errors.push({provider:p.id,reason:e?.name==='AbortError'?'timeout':'connection/stream error'});
       cooldownProvider(p,503);clearTimeout(timer);
@@ -121,20 +126,25 @@ export async function selectModel(env,messages,fetchFn=fetch){
 }
 function sse(event,data){return encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`)}
 export function makeSSE(selected){
-  let closed=false;
+  let closed=false,idleTimer;
+  const resetIdle=()=>{clearTimeout(idleTimer);idleTimer=setTimeout(()=>selected.controller.abort(),selected.idleTimeoutMs||45000)};
   return new ReadableStream({
     async start(controller){
       try{
-        controller.enqueue(sse('model',{provider:selected.provider,model:selected.model}));
+        controller.enqueue(sse('model',{provider:selected.provider,model:selected.model,attempts:selected.attempts||[]}));
         controller.enqueue(sse('delta',{text:selected.first}));
-        for await(const text of { [Symbol.asyncIterator]:()=>selected.iterator })controller.enqueue(sse('delta',{text}));
-        controller.enqueue(sse('done',{}));
+        resetIdle();
+        for await(const text of { [Symbol.asyncIterator]:()=>selected.iterator }){
+          if(closed)break;
+          controller.enqueue(sse('delta',{text}));resetIdle();
+        }
+        if(!closed)controller.enqueue(sse('done',{}));
       }catch{
-        // Cannot continue with another model after first output: would splice answers.
-        controller.enqueue(sse('interrupted',{message:'Stream interrupted. Retry this message to try the next available model.'}));
-      }finally{clearTimeout(selected.timer);selected.controller.abort();if(!closed){closed=true;controller.close()}}
+        // Cannot switch after producing content: never splice two unrelated answers.
+        if(!closed)controller.enqueue(sse('interrupted',{message:'Stream interrupted. Retry this message to try another model.'}));
+      }finally{clearTimeout(idleTimer);selected.controller.abort();if(!closed){closed=true;controller.close()}}
     },
-    cancel(){closed=true;clearTimeout(selected.timer);selected.controller.abort()}
+    cancel(){closed=true;clearTimeout(idleTimer);selected.controller.abort()}
   });
 }
 export async function handleRequest(request,env,fetchFn=fetch){

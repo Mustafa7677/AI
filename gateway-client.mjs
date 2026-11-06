@@ -20,14 +20,14 @@ async function* eventStream(body){
     if(data.length){yield {event,payload:JSON.parse(data.join('\n'))}}
   }finally{reader.releaseLock()}
 }
-export async function streamChat({endpoint,token,messages,onModel=()=>{},onDelta=()=>{},signal,fetchFn=fetch}){
+export async function streamChat({endpoint,token,messages,onModel=()=>{},onRoute=()=>{},onDelta=()=>{},signal,fetchFn=fetch}){
   if(!validEndpoint(endpoint))throw new Error('Secure gateway URL required (HTTPS)');
   if(!token)throw new Error('Gateway access token required');
   const response=await fetchFn(cleanEndpoint(endpoint)+'/v1/chat',{method:'POST',headers:{'content-type':'application/json','authorization':'Bearer '+token},body:JSON.stringify({messages}),signal});
   if(!response.ok){let reason='';try{const e=await response.json();reason=e.error||''}catch{}throw new Error(reason||`Gateway HTTP ${response.status}`)}
   let responseText='',model='',complete=false;
   for await(const {event,payload} of eventStream(response.body)){
-    if(event==='model'){model=`${payload.provider} · ${payload.model}`;onModel(model)}
+    if(event==='model'){model=`${payload.provider} · ${payload.model}`;onModel(model);onRoute({provider:payload.provider,model:payload.model,attempts:payload.attempts||[]})}
     else if(event==='delta'){const text=payload.text||'';responseText+=text;onDelta(text)}
     else if(event==='done'){complete=true;break}
     else if(event==='interrupted')throw new Error(payload.message||'AI stream interrupted');
