@@ -13,15 +13,17 @@ function setLanguage(){document.documentElement.lang=uiLang();document.querySele
 function elt(tag,className,text){const n=document.createElement(tag);if(className)n.className=className;if(text!==undefined)n.textContent=text;return n}
 function renderHistory(){const parent=$('history');parent.replaceChildren();for(const chat of ai.chats){const row=elt('div','history-item'+(chat.id===ai.current?' selected':''));const btn=elt('button','history-item',`◷   ${chat.title}`);btn.title=chat.title;btn.style.flex='1';btn.style.minWidth='0';btn.style.textAlign='left';btn.onclick=()=>{stopReply();ai.selectChat(chat.id);render();closeSidebar()};const del=elt('button','delete','×');del.title='Delete chat';del.setAttribute('aria-label','Delete chat');del.onclick=()=>{stopReply();ai.deleteChat(chat.id);render()};row.append(btn,del);parent.appendChild(row);}}
 function addBubble(role,content){const row=elt('div','message '+role);if(role==='assistant'){const avatar=elt('div','avatar');const img=document.createElement('img');img.src='./icon.svg';img.alt='TULPAR';avatar.append(img);row.appendChild(avatar);}const body=elt('div','content',content);row.append(body);$('messages').appendChild(row);$('conversation').scrollTop=$('conversation').scrollHeight;return body}
-function render(){renderHistory();const list=ai.chat()?.messages||[];$('welcome').hidden=list.length>0;$('messages').replaceChildren();for(const msg of list)addBubble(msg.role,msg.content);$('conversation').scrollTop=$('conversation').scrollHeight;updateStats();$('retryLast').hidden=busy||list.at(-1)?.role!=='assistant';}
+function render(){renderHistory();const list=ai.chat()?.messages||[];$('welcome').hidden=list.length>0;$('messages').replaceChildren();for(const msg of list)addBubble(msg.role,msg.content);$('conversation').scrollTop=list.length?$('conversation').scrollHeight:0;updateStats();$('retryLast').hidden=busy||list.at(-1)?.role!=='assistant';}
 function updateStats(){$('stats').textContent=`${ai.chats.length} chats · ${ai.examples.length} learned answers · ${ai.documents.length} documents · ${ai.notes.length} memories`;}
 let busy=false;
 let inflightController=null;
-let gateway=localStorage.getItem('tulpar_gateway_url')||'';
-let accessToken=sessionStorage.getItem('tulpar_gateway_access')||'';
+// Served by the Classroom Worker at /app/: cloud AI goes through same-origin /api/chat (no token in the browser).
+const CLASSROOM=!!document.querySelector('meta[name="tulpar-classroom"]');
+let gateway=CLASSROOM?location.origin:(localStorage.getItem('tulpar_gateway_url')||'');
+let accessToken=CLASSROOM?'':(sessionStorage.getItem('tulpar_gateway_access')||'');
 let aiMode=localStorage.getItem('tulpar_ai_mode')||'auto';
 function setBadge(text){$('modelBadge').textContent=text||'● TULPAR CORE'}
-function syncGatewaySettings(){$('gatewayUrl').value=gateway;$('gatewayToken').value=accessToken;$('aiMode').value=aiMode;setBadge(gateway&&aiMode!=='local'?'● AUTO MODELS':'● TULPAR CORE')}
+function syncGatewaySettings(){$('gatewayUrl').value=gateway;$('gatewayToken').value=accessToken;$('aiMode').value=aiMode;setBadge(gateway&&aiMode!=='local'?(CLASSROOM?'● CLASSROOM AI':'● AUTO MODELS'):'● TULPAR CORE')}
 function setBusy(value){busy=value;$('stop').hidden=!value;$('sendButton').disabled=value;$('retryLast').hidden=value||ai.chat()?.messages.at(-1)?.role!=='assistant'}
 function stopReply(){inflightController?.abort()}
 $('stop').onclick=stopReply;
@@ -51,7 +53,7 @@ async function send(text){
   if(useCloud){
    try{
     const messages=(ai.chats.find(c=>c.id===chatId)?.messages||[]).slice(-20).map(({role,content})=>({role,content}));
-    const result=await streamChat({endpoint:gateway,token:accessToken,messages,signal:requestController.signal,
+    const result=await streamChat({endpoint:gateway,token:accessToken,classroom:CLASSROOM,messages,signal:requestController.signal,
       onModel:model=>setBadge('● '+model),
       onRoute:route=>{
        if(route.attempts?.length){const names=route.attempts.map(a=>`${a.provider} (${a.status||a.reason})`);
@@ -64,6 +66,7 @@ async function send(text){
    }catch(error){
     if(requestController.signal.aborted)throw error;
     if(partial){bubble.textContent=partial+'\n\n⚠ '+error.message;saveAssistant(bubble.textContent);return}
+    if(CLASSROOM&&error.status===401){bubble.textContent='⚠ Класс сессиясы аяқталды. Қайта қосылыңыз: /join';saveAssistant(bubble.textContent);setTimeout(()=>location.assign('/join'),1500);return}
     if(aiMode==='cloud')throw error;
     const localReply=await ai.reply(text);
     if(requestController.signal.aborted)throw new DOMException('Aborted','AbortError');
@@ -89,6 +92,13 @@ function closeSidebar(){$('sidebar').classList.remove('open');$('overlay').class
 let light=localStorage.getItem('tulpar_theme')==='light';function setTheme(){document.body.classList.toggle('light',light);$('theme').textContent=light?'☀':'☾'}$('theme').onclick=()=>{light=!light;localStorage.setItem('tulpar_theme',light?'light':'dark');setTheme()};setTheme();
 $('settingsOpen').onclick=()=>{$('settingsModal').hidden=false;closeSidebar();updateStats();syncGatewaySettings()};$('settingsClose').onclick=()=>{$('settingsModal').hidden=true};$('settingsModal').addEventListener('click',e=>{if(e.target===$('settingsModal'))$('settingsModal').hidden=true});
 $('saveGateway').onclick=async()=>{
+ if(CLASSROOM){
+  aiMode=$('aiMode').value;localStorage.setItem('tulpar_ai_mode',aiMode);syncGatewaySettings();
+  const status=$('gatewayStatus');status.textContent='Checking classroom…';
+  try{const me=await fetch('/api/me',{credentials:'same-origin'}).then(r=>r.json());status.textContent=me.role==='student'?'✓ 🎓 '+me.className+' · '+me.name+(aiMode==='local'?' · Local TULPAR Core':' · Classroom AI'):'✕ Классқа қайта қосылыңыз (/join)'}
+  catch(e){status.textContent='✕ '+e.message}
+  return;
+ }
  const next=$('gatewayUrl').value.trim(),mode=$('aiMode').value,token=$('gatewayToken').value;
  const status=$('gatewayStatus');if(next&&!validEndpoint(next)){status.textContent='HTTPS gateway URL required';return}
  gateway=next;accessToken=token;aiMode=mode;
@@ -115,5 +125,33 @@ $('backupInput').onchange=async event=>{
 };
 $('attach').onclick=()=>$('fileInput').click();$('fileInput').onchange=async e=>{const f=e.target.files?.[0];if(!f)return;if(f.size>5*1024*1024){alert(t('limit'));return;}let text;try{if(f.name.toLowerCase().endsWith('.pdf')){const pdfjs=await import('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.min.mjs');pdfjs.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.worker.min.mjs';const pdf=await pdfjs.getDocument({data:new Uint8Array(await f.arrayBuffer())}).promise;const pages=[];for(let i=1;i<=Math.min(pdf.numPages,60);i++){const p=await pdf.getPage(i);const c=await p.getTextContent();pages.push(c.items.map(x=>x.str||'').join(' '))}text=pages.join('\n')}else{text=await f.text()}if(!text.trim())throw Error('No text found');await ai.addDocument(f,text);$('fileChips').appendChild(elt('span','file-chip',`📄 ${f.name}`));updateStats();addBubble('assistant',`${t('attached')}: ${f.name}. ${text.length} characters.`)}catch(err){console.error(err);alert(t('badfile'))}finally{e.target.value=''}};
 $('mic').onclick=()=>{const SpeechRecognition=window.SpeechRecognition||window.webkitSpeechRecognition;if(!SpeechRecognition){alert(t('mic'));return}const r=new SpeechRecognition();r.lang=uiLang()==='kk'?'kk-KZ':uiLang()==='ru'?'ru-RU':'en-US';r.interimResults=false;$('mic').classList.add('recording');r.onresult=e=>{$('prompt').value=e.results[0][0].transcript;resize()};r.onerror=()=>{$('mic').classList.remove('recording')};r.onend=()=>{$('mic').classList.remove('recording')};r.start()};
-if('serviceWorker'in navigator&&location.protocol.startsWith('http'))navigator.serviceWorker.register('./sw.js').catch(console.warn);
+if(!CLASSROOM&&'serviceWorker'in navigator&&location.protocol.startsWith('http'))navigator.serviceWorker.register('./sw.js').catch(console.warn);
+function setupClassroom(){
+ // Hide owner-only gateway URL/token fields; students never enter credentials.
+ for(const id of ['gatewayUrl','gatewayToken']){const input=$(id);input.hidden=true;const label=document.querySelector(`label[for="${id}"]`);if(label)label.hidden=true}
+ $('gatewayInfo').textContent='Classroom AI: мұғалімнің серверіндегі multi-model gateway. Токен немесе API кілті қажет емес. Local режимі — TULPAR Core.';
+ $('saveGateway').textContent='Режимді сақтау';
+ $('gatewayStatus').textContent='🎓 Classroom';
+ const logout=elt('button','bottom-link','⎋ Класстан шығу');logout.id='classLogout';
+ logout.onclick=async()=>{stopReply();await fetch('/api/logout',{method:'POST',credentials:'same-origin',headers:{'content-type':'application/json'},body:'{}'}).catch(()=>{});location.assign('/join')};
+ document.querySelector('.sidebar-bottom').append(logout);
+ fetch('/api/me',{credentials:'same-origin'}).then(r=>r.json()).then(me=>{
+  if(me.role!=='student'){location.assign('/join');return}
+  document.querySelector('.brand small').textContent='🎓 '+me.className;
+  $('gatewayStatus').textContent='✓ 🎓 '+me.className+' · '+me.name;
+ }).catch(()=>{});
+}
+if(CLASSROOM)setupClassroom();
 setLanguage();render();syncGatewaySettings();
+// Cinema opening: plays once per session on the title frame; click "skip", Esc or any key ends it.
+(function cinema(){
+ const w=$('welcome');let seen=false;try{seen=sessionStorage.getItem('tulpar_reel')==='1'}catch{}
+ const reduce=matchMedia('(prefers-reduced-motion: reduce)').matches;
+ const end=()=>{w.classList.remove('playing');w.classList.add('still')};
+ if(seen||reduce||w.hidden){end();return}
+ try{sessionStorage.setItem('tulpar_reel','1')}catch{}
+ w.classList.add('playing');
+ $('skipReel').onclick=end;
+ const key=()=>{end();removeEventListener('keydown',key)};addEventListener('keydown',key);
+ setTimeout(end,7000);
+})();

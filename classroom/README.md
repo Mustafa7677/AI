@@ -1,31 +1,36 @@
 # TULPAR Classroom
-Backend prototype, not deployed. Existing website still needs integration.
 
-## Architecture
-Cloudflare Worker: classroom/worker.mjs; D1 schema: classroom/schema.sql.
-Super Admin creates classes; student joins with class code and name, receives HttpOnly cookie. No student API tokens.
-AI requests use internal service binding AI_GATEWAY to existing server/gateway.mjs; provider keys remain server-side.
+Cloudflare Worker `tulpar-classroom` (`classroom/worker.mjs`) + D1 (`classroom/schema.sql`).
 
-## Deployment requirements
-1. Create D1 database, apply schema.sql and bind as DB.
-2. Deploy existing gateway Worker with a real provider secret and TULPAR_ACCESS_TOKEN.
-3. Deploy classroom Worker with service binding AI_GATEWAY to gateway Worker.
-4. Set ALLOWED_ORIGIN to exact website origin and configure gateway ALLOWED_ORIGINS accordingly.
-5. Set TULPAR_ACCESS_TOKEN and a distinct ADMIN_SETUP_SECRET as Cloudflare Worker secrets.
-6. Owner bootstraps via trusted command-line request to POST /api/admin/bootstrap using Authorization Bearer ADMIN_SETUP_SECRET.
-7. Implement student join/login and admin class management frontend using credentials: include.
-8. Add Cloudflare rate limiting, quotas, session revocation and enrollment limits.
-9. Test end-to-end on deployed Worker. GitHub Pages alone cannot enforce membership.
+## Flow
+1. Super Admin: `/admin` → password (`ADMIN_PASSWORD`) → create class → one-time Join Code; open/close classes.
+2. Student: `/join` → name + Join Code → HttpOnly `SameSite=Lax` session cookie (first-party).
+3. Student is redirected to `/app/` — the full existing TULPAR AI interface, proxied from GitHub Pages
+   (`APP_SOURCE`, default `https://mustafa7677.github.io/AI/`) and served from the Worker origin.
+   - Cloud (multi-model): browser → same-origin `/api/chat` → service binding `AI_GATEWAY`
+     with `TULPAR_ACCESS_TOKEN` added server-side. No token/API key in the browser.
+   - Local TULPAR Core: unchanged, runs in the browser (Settings → AI режимі).
+4. Every `/api/chat` call re-checks: valid session, active user, student role, active class.
+   Closing a class immediately revokes its students' sessions.
+
+Why first-party: `github.io` and `workers.dev` are different sites, so a cookie set by the Worker
+is third-party on GitHub Pages and is not sent (SameSite / third-party cookie blocking).
 
 ## Routes
-POST /api/admin/bootstrap — one-time owner session.
-POST /api/admin/classes — admin-only; body name; returns one-time class code.
-POST /api/class/join — class code and student name; issues session cookie.
-GET /api/me — role/session state.
-POST /api/chat — authenticated gateway proxy.
+GET `/join`, `/admin`, `/app/*` (`/`, `/app`, `/chat` → `/app/`)
+POST `/api/class/join`, `/api/admin/login`, `/api/logout`, `/api/chat`
+GET `/api/me`; GET/POST `/api/admin/classes`; POST `/api/admin/classes/status` `{id, active}`
 
-## Security and limitations
-Join code can be shared; require approval/expiry for stronger access.
-Cross-site browser cookies may be blocked; use same-site custom domain/proxy.
-Existing website settings are not yet changed. This is not a live class-only product.
-Rate limiting and per-student billing quotas must be enforced before opening enrollment.
+## Bindings (existing, unchanged)
+`DB` (D1), `AI_GATEWAY` (service → `tulpar-ai-gateway`), secrets `TULPAR_ACCESS_TOKEN`, `ADMIN_PASSWORD`,
+var `ALLOWED_ORIGIN` (must be in the gateway's `ALLOWED_ORIGINS`). Optional var `APP_SOURCE`.
+No schema change is required.
+
+## Deploy
+`.github/workflows/deploy-workers.yml` uploads only the classroom Worker code (bindings and secrets are kept; gateway only via manual run) on push to
+`main`, when repository secrets `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` exist. Otherwise paste
+`classroom/worker.mjs` into the Cloudflare dashboard editor of `tulpar-classroom`.
+
+## Limits
+Join Codes can be shared; close the class to revoke. Per-student rate limit (20/min) is best effort per isolate;
+enable the gateway `RATE_LIMITER` binding for a hard limit (keyed per student via `x-tulpar-user`).
