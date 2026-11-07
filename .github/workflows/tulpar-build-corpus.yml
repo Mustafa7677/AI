@@ -1,0 +1,53 @@
+name: Build TULPAR author corpus
+on:
+  workflow_dispatch:
+  push:
+    branches: [feature/tulpar-training-integration]
+    paths:
+      - 'scripts/prepare_original_lessons.py'
+      - 'scripts/lecture_retrieval.py'
+      - 'scripts/build_lecture_index.py'
+      - '.github/workflows/tulpar-build-corpus.yml'
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout TULPAR
+        uses: actions/checkout@v4
+      - name: Checkout original teaching materials
+        uses: actions/checkout@v4
+        with:
+          repository: Mustafa7677/CS50MUSS
+          path: author-lessons
+          persist-credentials: false
+      - name: Python environment
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Extract exactly 16 original lectures
+        run: python scripts/prepare_original_lessons.py author-lessons --output data/original_lessons.jsonl
+      - name: Build lexical retrieval index
+        run: python scripts/build_lecture_index.py --corpus data/original_lessons.jsonl --output data/lecture_index.json
+      - name: Verify corpus count and provenance
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          rows = [json.loads(x) for x in Path('data/original_lessons.jsonl').read_text().splitlines()]
+          assert len(rows) == 16, f'Expected 16, got {len(rows)}'
+          assert {x['language'] for x in rows} == {'cpp', 'java'}
+          assert all(len(x['text']) >= 500 and len(x['sha256']) == 64 for x in rows)
+          idx = json.loads(Path('data/lecture_index.json').read_text())
+          assert idx['documents'] >= 16
+          print(f"Verified {len(rows)} original lessons and {idx['documents']} retrieval chunks")
+          PY
+      - name: Upload generated corpus and index
+        uses: actions/upload-artifact@v4
+        with:
+          name: tulpar-original-lecture-index
+          path: |
+            data/original_lessons.jsonl
+            data/lecture_index.json
+          retention-days: 14
