@@ -4,6 +4,8 @@ on:
     branches: [feature/tulpar-training-integration]
     paths:
       - 'scripts/train_neural_mentor.py'
+      - 'scripts/neural_inference.py'
+      - 'tests/test_neural_inference.py'
       - '.github/workflows/tulpar-neural-train.yml'
   workflow_dispatch:
 jobs:
@@ -26,8 +28,12 @@ jobs:
         run: pip install --index-url https://download.pytorch.org/whl/cpu torch
       - name: Extract author's 16 original lectures
         run: python scripts/prepare_original_lessons.py author-lessons --output data/original_lessons.jsonl
+      - name: Test neural inference checkpoint roundtrip
+        run: python -m unittest discover -s tests -p 'test_neural_inference.py' -v
       - name: Train neural model and evaluate held-out weeks
         run: python scripts/train_neural_mentor.py --corpus data/original_lessons.jsonl --epochs 30
+      - name: Smoke-test trained checkpoint
+        run: python scripts/neural_inference.py --checkpoint data/tulpar_neural_classifier.pt --question 'vector pointer cout'
       - name: Upload actual trained weights and evaluation
         uses: actions/upload-artifact@v4
         with:
