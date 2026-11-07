@@ -13,7 +13,7 @@ function setLanguage(){document.documentElement.lang=uiLang();document.querySele
 function elt(tag,className,text){const n=document.createElement(tag);if(className)n.className=className;if(text!==undefined)n.textContent=text;return n}
 function renderHistory(){const parent=$('history');parent.replaceChildren();for(const chat of ai.chats){const row=elt('div','history-item'+(chat.id===ai.current?' selected':''));const btn=elt('button','history-item',`◷   ${chat.title}`);btn.title=chat.title;btn.style.flex='1';btn.style.minWidth='0';btn.style.textAlign='left';btn.onclick=()=>{stopReply();ai.selectChat(chat.id);render();closeSidebar()};const del=elt('button','delete','×');del.title='Delete chat';del.setAttribute('aria-label','Delete chat');del.onclick=()=>{stopReply();ai.deleteChat(chat.id);render()};row.append(btn,del);parent.appendChild(row);}}
 function addBubble(role,content){const row=elt('div','message '+role);if(role==='assistant'){const avatar=elt('div','avatar');const img=document.createElement('img');img.src='./icon.svg';img.alt='TULPAR';avatar.append(img);row.appendChild(avatar);}const body=elt('div','content',content);row.append(body);$('messages').appendChild(row);$('conversation').scrollTop=$('conversation').scrollHeight;return body}
-function render(){renderHistory();const list=ai.chat()?.messages||[];$('welcome').hidden=list.length>0;$('messages').replaceChildren();for(const msg of list)addBubble(msg.role,msg.content);$('conversation').scrollTop=$('conversation').scrollHeight;updateStats();$('retryLast').hidden=busy||list.at(-1)?.role!=='assistant';}
+function render(){renderHistory();const list=ai.chat()?.messages||[];$('welcome').hidden=list.length>0;$('messages').replaceChildren();for(const msg of list)addBubble(msg.role,msg.content);$('conversation').scrollTop=list.length?$('conversation').scrollHeight:0;updateStats();$('retryLast').hidden=busy||list.at(-1)?.role!=='assistant';}
 function updateStats(){$('stats').textContent=`${ai.chats.length} chats · ${ai.examples.length} learned answers · ${ai.documents.length} documents · ${ai.notes.length} memories`;}
 let busy=false;
 let inflightController=null;
@@ -143,3 +143,15 @@ function setupClassroom(){
 }
 if(CLASSROOM)setupClassroom();
 setLanguage();render();syncGatewaySettings();
+// Cinema opening: plays once per session on the title frame; click "skip", Esc or any key ends it.
+(function cinema(){
+ const w=$('welcome');let seen=false;try{seen=sessionStorage.getItem('tulpar_reel')==='1'}catch{}
+ const reduce=matchMedia('(prefers-reduced-motion: reduce)').matches;
+ const end=()=>{w.classList.remove('playing');w.classList.add('still')};
+ if(seen||reduce||w.hidden){end();return}
+ try{sessionStorage.setItem('tulpar_reel','1')}catch{}
+ w.classList.add('playing');
+ $('skipReel').onclick=end;
+ const key=()=>{end();removeEventListener('keydown',key)};addEventListener('keydown',key);
+ setTimeout(end,7000);
+})();
