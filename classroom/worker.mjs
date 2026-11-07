@@ -61,7 +61,7 @@ export default {async fetch(request,env){
    if(!env.AI_GATEWAY||!env.TULPAR_ACCESS_TOKEN)return json({error:"AI gateway is not configured"},503,h);
    const body=await payload(request);
    if(!Array.isArray(body.messages)||body.messages.length>40)return json({error:"Invalid messages"},400,h);
-   const upstream=await env.AI_GATEWAY.fetch("https://tulpar-internal/chat",{method:"POST",headers:{"content-type":"application/json","authorization":`Bearer ${env.TULPAR_ACCESS_TOKEN}`},body:JSON.stringify({messages:body.messages})});
+   const upstream=await env.AI_GATEWAY.fetch("https://tulpar-internal/v1/chat",{method:"POST",headers:{"content-type":"application/json","origin":env.ALLOWED_ORIGIN,"authorization":`Bearer ${env.TULPAR_ACCESS_TOKEN}`},body:JSON.stringify({messages:body.messages})});
    return new Response(upstream.body,{status:upstream.status,headers:{...h,"content-type":upstream.headers.get("content-type")||"application/json","cache-control":"no-store"}});
   }
   return json({error:"Not found"},404,h);
