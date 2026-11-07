@@ -1,4 +1,5 @@
 name: TULPAR train original lectures on main
+# Re-run training on source-controlled original lecture corpus
 on:
   push:
     branches: [main]
