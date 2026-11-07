@@ -18,3 +18,16 @@
 .retry-btn{background:transparent;color:var(--accent);font-size:11px;border:0;padding:5px 2px}
 .route-status{font-size:10px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%;text-align:right}
 @media(max-width:480px){.composer-feedback{flex-wrap:wrap;gap:4px}.route-status{font-size:9px}}
+
+/* TULPAR Workspace: focused learning entry points */
+.quick-start{width:min(100%,740px);margin:24px auto 18px;text-align:left}
+.quick-start-label{display:block;font-size:10px;font-weight:800;letter-spacing:.19em;color:var(--muted);margin-bottom:12px}
+.quick-start-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.quick-start-card{min-width:0;display:flex;flex-direction:column;align-items:flex-start;gap:8px;text-align:left;padding:19px 16px;border:1px solid var(--stroke);border-radius:17px;background:var(--panel);color:var(--text);cursor:pointer;transition:transform .18s,border-color .18s,box-shadow .18s}
+.quick-start-card:hover{transform:translateY(-3px);border-color:var(--accent);box-shadow:0 10px 28px #0002}
+.quick-start-card:focus-visible{outline:3px solid var(--accent);outline-offset:3px}
+.quick-start-icon{display:grid;place-items:center;width:35px;height:35px;border-radius:11px;background:var(--soft);color:var(--accent);font-size:20px}
+.quick-start-card strong{font-size:14px;line-height:1.35}
+.quick-start-card small{font-size:11px;line-height:1.5;color:var(--muted)}
+@media(max-width:600px){.quick-start{margin:18px auto 14px}.quick-start-grid{grid-template-columns:1fr;gap:8px}.quick-start-card{display:grid;grid-template-columns:36px 1fr;column-gap:12px;padding:12px 14px}.quick-start-icon{grid-row:span 2}.quick-start-card strong{align-self:end}.quick-start-card small{align-self:start}}
+@media(prefers-reduced-motion:reduce){.quick-start-card{transition:none}.quick-start-card:hover{transform:none}}
