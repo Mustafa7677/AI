@@ -1,0 +1,48 @@
+name: Deploy TULPAR Workers (code only)
+# Uploads only the Worker code. Existing bindings (DB, AI_GATEWAY), secrets
+# (TULPAR_ACCESS_TOKEN, ADMIN_PASSWORD, provider keys) and vars are kept,
+# because the Cloudflare "script content" endpoint does not touch settings.
+# Requires repository secrets CLOUDFLARE_API_TOKEN (Workers Scripts: Edit)
+# and CLOUDFLARE_ACCOUNT_ID. Without them the job skips with a notice.
+on:
+  push:
+    branches: [main]
+    paths: ['classroom/worker.mjs', '.github/workflows/deploy-workers.yml']
+  workflow_dispatch:
+    inputs:
+      gateway:
+        description: 'Also deploy server/gateway.mjs to tulpar-ai-gateway'
+        type: boolean
+        default: false
+permissions:
+  contents: read
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      CF_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CF_ACCOUNT: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Test
+        run: npm test
+      - name: Upload Worker code
+        run: |
+          if [ -z "$CF_TOKEN" ] || [ -z "$CF_ACCOUNT" ]; then
+            echo "::notice::CLOUDFLARE_API_TOKEN / CLOUDFLARE_ACCOUNT_ID not set; skipping deploy."; exit 0
+          fi
+          deploy() { # script-name file
+            name=$(basename "$2")
+            curl -sS --fail-with-body -X PUT \
+              "https://api.cloudflare.com/client/v4/accounts/$CF_ACCOUNT/workers/scripts/$1/content" \
+              -H "Authorization: Bearer $CF_TOKEN" \
+              -F "metadata={\"main_module\":\"$name\"};type=application/json" \
+              -F "$name=@$2;filename=$name;type=application/javascript+module" > /dev/null
+            echo "Deployed $1"
+          }
+          deploy tulpar-classroom classroom/worker.mjs
+          if [ "${{ inputs.gateway }}" = "true" ]; then deploy tulpar-ai-gateway server/gateway.mjs; fi

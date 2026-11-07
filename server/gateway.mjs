@@ -165,7 +165,8 @@ export async function handleRequest(request,env,fetchFn=fetch){
     messages=validateMessages(JSON.parse(raw));
   }catch(e){return json({error:e.message||'Invalid request body'},400,headers)}
   if(env.RATE_LIMITER){
-    const ip=request.headers.get('cf-connecting-ip')||'unknown';
+    // Classroom Worker (already token-authorized) passes a per-student key.
+    const ip=request.headers.get('x-tulpar-user')||request.headers.get('cf-connecting-ip')||'unknown';
     const {success}=await env.RATE_LIMITER.limit({key:ip});
     if(!success)return json({error:'Too many requests'},429,headers);
   }
