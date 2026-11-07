@@ -10,6 +10,8 @@ on:
       - '.github/workflows/tulpar-build-corpus.yml'
       - 'scripts/train_lecture_classifier.py'
       - 'scripts/evaluate_retrieval.py'
+      - 'scripts/benchmark_mentor.py'
+      - 'tests/mentor_benchmark_cases.py'
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -36,6 +38,8 @@ jobs:
         run: python scripts/train_lecture_classifier.py --corpus data/original_lessons.jsonl --output data/lecture_classifier.json --report data/classifier_evaluation.json
       - name: Evaluate lexical retrieval diagnostics
         run: python scripts/evaluate_retrieval.py --corpus data/original_lessons.jsonl --output data/retrieval_diagnostics.json
+      - name: Benchmark independent Kazakh student questions
+        run: python scripts/benchmark_mentor.py --corpus data/original_lessons.jsonl --output data/mentor_benchmark.json
       - name: Verify corpus count and provenance
         run: |
           python - <<'PY'
@@ -59,4 +63,5 @@ jobs:
             data/lecture_classifier.json
             data/classifier_evaluation.json
             data/retrieval_diagnostics.json
+            data/mentor_benchmark.json
           retention-days: 14
