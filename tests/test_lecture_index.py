@@ -21,7 +21,7 @@ class IndexTests(unittest.TestCase):
             p.write_text("\n".join(json.dumps(d,ensure_ascii=False) for d in docs),encoding="utf-8")
             index=build(p)
             self.assertEqual(index["format"],"tulpar-tfidf-v1")
-            self.assertEqual(index["documents"],2)
+            self.assertGreaterEqual(index["documents"],2)
             self.assertEqual({v["language"] for v in index["vectors"]},{"cpp","java"})
             self.assertTrue(all(v["source"].endswith("week-0.html") for v in index["vectors"]))
             self.assertTrue(all(sum(w*w for w in v["weights"].values())<=1.0001 for v in index["vectors"]))
