@@ -16,6 +16,13 @@ function cookie(request){return /(?:^|;\s*)tulpar_session=([^;]+)/.exec(request.
 async function session(request,env){const token=cookie(request);if(!token)return null;const hash=await hex(token);return env.DB.prepare("SELECT s.user_id,u.role,u.class_id FROM sessions s JOIN users u ON u.id=s.user_id WHERE s.token_hash=? AND s.expires_at>? AND u.active=1").bind(hash,Date.now()).first()}
 async function payload(request){const data=await request.json();if(!data||typeof data!=="object"||Array.isArray(data))throw Error("Invalid JSON object");return data}
 export default {async fetch(request,env){
+ // Serve the admin interface on the same origin as the API, so its
+ // HttpOnly session cookie remains first-party in privacy-focused browsers.
+ if(request.method==="GET"&&new URL(request.url).pathname==="/admin"){
+  const page=await fetch("https://mustafa7677.github.io/AI/admin.html");
+  if(!page.ok)return new Response("Admin page unavailable",{status:502});
+  return new Response(page.body,{headers:{"content-type":"text/html; charset=utf-8","cache-control":"no-store","x-content-type-options":"nosniff","referrer-policy":"no-referrer"}});
+ }
  const h=cors(request,env);if(!h)return json({error:"Origin not allowed"},403);
  if(request.method==="OPTIONS")return new Response(null,{status:204,headers:h});
  const path=new URL(request.url).pathname;
