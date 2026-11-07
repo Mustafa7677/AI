@@ -1,0 +1,41 @@
+name: TULPAR train original lectures on main
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/tulpar-train-main.yml']
+  workflow_dispatch:
+jobs:
+  train:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/tulpar-training-integration
+      - uses: actions/checkout@v4
+        with:
+          repository: Mustafa7677/CS50MUSS
+          path: author-lessons
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install PyTorch CPU
+        run: pip install --index-url https://download.pytorch.org/whl/cpu torch
+      - name: Prepare original lectures
+        run: python scripts/prepare_original_lessons.py author-lessons --output data/original_lessons.jsonl
+      - name: Train neural classifier on original lectures
+        run: python scripts/train_neural_mentor.py --corpus data/original_lessons.jsonl --epochs 30
+      - name: Evaluate independent Kazakh questions
+        run: python scripts/benchmark_mentor.py --corpus data/original_lessons.jsonl
+      - name: Save trained model and metrics
+        uses: actions/upload-artifact@v4
+        with:
+          name: tulpar-trained-original-lectures
+          path: |
+            data/tulpar_neural_classifier.pt
+            data/neural_metrics.json
+            data/mentor_benchmark.json
+          retention-days: 30
