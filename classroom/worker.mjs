@@ -34,6 +34,16 @@ export default {async fetch(request,env){
    ]);
    return json({ok:true,role:"student"},200,{...h,"set-cookie":`tulpar_session=${token}; HttpOnly; Secure; SameSite=None; Path=/; Max-Age=2592000`});
   }
+  if(path==="/api/admin/login"&&request.method==="POST"){
+   const body=await payload(request);
+   const password=String(body.password||"");
+   if(!env.ADMIN_PASSWORD||password.length<12||await hex(password)!==await hex(env.ADMIN_PASSWORD))return json({error:"Invalid admin credentials"},401,h);
+   const admin=await env.DB.prepare("SELECT id FROM users WHERE role='admin' AND active=1 LIMIT 1").first();
+   if(!admin)return json({error:"Super Admin not initialized"},409,h);
+   const token=random()+random();
+   await env.DB.prepare("INSERT INTO sessions(token_hash,user_id,expires_at) VALUES(?,?,?)").bind(await hex(token),admin.id,Date.now()+30*86400000).run();
+   return json({ok:true,role:"admin"},200,{...h,"set-cookie":`tulpar_session=${token}; HttpOnly; Secure; SameSite=None; Path=/; Max-Age=2592000`});
+  }
   if(path==="/api/admin/bootstrap"&&request.method==="POST"){
    if(!env.ADMIN_SETUP_SECRET||request.headers.get("authorization")!==`Bearer ${env.ADMIN_SETUP_SECRET}`)return json({error:"Forbidden"},403,h);
    const count=await env.DB.prepare("SELECT COUNT(*) AS n FROM users WHERE role='admin'").first();
