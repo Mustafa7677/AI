@@ -5,9 +5,10 @@ Returns relevant excerpts with citations; never invents a lecture answer.
 import argparse
 import json
 from lecture_retrieval import load_index
+from multilingual_queries import expand
 
 def answer(index, question, language=None, limit=3, min_score=0.05):
-    hits=index.search(question, language=language, limit=limit)
+    hits=index.search(expand(question), language=language, limit=limit)
     hits=[h for h in hits if h["score"]>=min_score]
     if not hits:
         return {"status":"not_found","answer":"Бұл сұраққа авторлық дәрістерден сенімді дерек табылмады.","citations":[]}
