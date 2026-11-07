@@ -8,6 +8,7 @@ on:
       - 'scripts/lecture_retrieval.py'
       - 'scripts/build_lecture_index.py'
       - 'scripts/grounded_mentor.py'
+      - 'scripts/multilingual_queries.py'
       - 'scripts/train_lecture_classifier.py'
       - 'tests/test_lecture_*.py'
       - 'tests/test_grounded_mentor.py'
