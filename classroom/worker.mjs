@@ -82,11 +82,14 @@ export default {async fetch(request,env){
    return json({id,name,joinCode:code},201,responseHeaders);
   }
   if(path==="/api/chat"&&request.method==="POST"){
+   if(me.role!=="student"||!me.class_id)return json({error:"Class membership required"},403,responseHeaders);
+   const active=await env.DB.prepare("SELECT id FROM classes WHERE id=? AND active=1").bind(me.class_id).first();
+   if(!active)return json({error:"Class inactive"},403,responseHeaders);
    if(!env.AI_GATEWAY||!env.TULPAR_ACCESS_TOKEN)return json({error:"AI gateway is not configured"},503,responseHeaders);
    const body=await payload(request);
-   if(!Array.isArray(body.messages)||body.messages.length>40)return json({error:"Invalid messages"},400,responseHeaders);
+   if(!Array.isArray(body.messages)||body.messages.length<1||body.messages.length>40)return json({error:"Invalid messages"},400,responseHeaders);
    const upstream=await env.AI_GATEWAY.fetch("https://tulpar-internal/v1/chat",{method:"POST",headers:{"content-type":"application/json","origin":env.ALLOWED_ORIGIN,"authorization":`Bearer ${env.TULPAR_ACCESS_TOKEN}`},body:JSON.stringify({messages:body.messages})});
-   return new Response(upstream.body,{status:upstream.status,headers:{...responseHeaders,"content-type":upstream.headers.get("content-type")||"application/json","cache-control":"no-store"}});
+   return new Response(upstream.body,{status:upstream.status,headers:{...responseHeaders,"content-type":upstream.headers.get("content-type")||"text/event-stream","cache-control":"no-store"}});
   }
   return json({error:"Not found"},404,responseHeaders);
  }catch(e){return json({error:"Request failed"},500,responseHeaders)}
