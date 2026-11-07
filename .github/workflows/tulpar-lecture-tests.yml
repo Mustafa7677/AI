@@ -1,0 +1,22 @@
+name: TULPAR lecture retrieval tests
+on:
+  push:
+    branches: [feature/tulpar-training-integration]
+  pull_request:
+    paths:
+      - 'scripts/prepare_original_lessons.py'
+      - 'scripts/lecture_retrieval.py'
+      - 'tests/test_lecture_retrieval.py'
+      - '.github/workflows/tulpar-lecture-tests.yml'
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Test lecture retrieval
+        run: python -m unittest discover -s tests -p 'test_lecture_retrieval.py' -v
