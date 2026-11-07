@@ -12,8 +12,10 @@ function t(key){return I[uiLang()][key]||key}
 function setLanguage(){document.documentElement.lang=uiLang();document.querySelectorAll('[data-i]').forEach(n=>n.textContent=t(n.dataset.i));$('prompt').placeholder=t('placeholder');$('lang').value=ai.preferred;const prompts={kk:['Сәлем! Сен кімсің?','Есепте: (25 + 17) * 4','Маған жоба идеяларын ұсын','Маған оқу жоспарын құрастыр'],ru:['Привет! Кто ты?','Посчитай: (25 + 17) * 4','Предложи идеи проекта','Помоги подготовиться к экзамену'],en:['Hello! Who are you?','Calculate: (25 + 17) * 4','Give me project ideas','Help me study for an exam']};document.querySelectorAll('.suggestions button').forEach((n,i)=>n.dataset.prompt=prompts[uiLang()][i]);}
 function elt(tag,className,text){const n=document.createElement(tag);if(className)n.className=className;if(text!==undefined)n.textContent=text;return n}
 function renderHistory(){const parent=$('history');parent.replaceChildren();for(const chat of ai.chats){const row=elt('div','history-item'+(chat.id===ai.current?' selected':''));const btn=elt('button','history-item',`◷   ${chat.title}`);btn.title=chat.title;btn.style.flex='1';btn.style.minWidth='0';btn.style.textAlign='left';btn.onclick=()=>{stopReply();ai.selectChat(chat.id);render();closeSidebar()};const del=elt('button','delete','×');del.title='Delete chat';del.setAttribute('aria-label','Delete chat');del.onclick=()=>{stopReply();ai.deleteChat(chat.id);render()};row.append(btn,del);parent.appendChild(row);}}
-function addBubble(role,content){const row=elt('div','message '+role);if(role==='assistant'){const avatar=elt('div','avatar');const img=document.createElement('img');img.src='./icon.svg';img.alt='TULPAR';avatar.append(img);row.appendChild(avatar);}const body=elt('div','content',content);row.append(body);$('messages').appendChild(row);$('conversation').scrollTop=$('conversation').scrollHeight;return body}
-function render(){renderHistory();const list=ai.chat()?.messages||[];$('welcome').hidden=list.length>0;$('messages').replaceChildren();for(const msg of list)addBubble(msg.role,msg.content);$('conversation').scrollTop=list.length?$('conversation').scrollHeight:0;updateStats();$('retryLast').hidden=busy||list.at(-1)?.role!=='assistant';}
+// Subtitle-style timecode relative to the first message of the chat.
+function timecode(ms){ms=Math.max(0,ms|0);const f=n=>String(n).padStart(2,'0');const s=Math.floor(ms/1000);return `${f(Math.floor(s/3600))}:${f(Math.floor(s/60)%60)}:${f(s%60)}`}
+function addBubble(role,content,time){const row=elt('div','message '+role);if(time){const start=ai.chat()?.messages?.[0]?.time||time;row.dataset.tc=timecode(time-start)}if(role==='assistant'){const avatar=elt('div','avatar');const img=document.createElement('img');img.src='./icon.svg';img.alt='TULPAR';avatar.append(img);row.appendChild(avatar);}const body=elt('div','content',content);row.append(body);$('messages').appendChild(row);$('conversation').scrollTop=$('conversation').scrollHeight;return body}
+function render(){renderHistory();const list=ai.chat()?.messages||[];$('welcome').hidden=list.length>0;$('messages').replaceChildren();for(const msg of list)addBubble(msg.role,msg.content,msg.time);$('conversation').scrollTop=list.length?$('conversation').scrollHeight:0;updateStats();$('retryLast').hidden=busy||list.at(-1)?.role!=='assistant';}
 function updateStats(){$('stats').textContent=`${ai.chats.length} chats · ${ai.examples.length} learned answers · ${ai.documents.length} documents · ${ai.notes.length} memories`;}
 let busy=false;
 let inflightController=null;
@@ -23,7 +25,10 @@ let gateway=CLASSROOM?location.origin:(localStorage.getItem('tulpar_gateway_url'
 let accessToken=CLASSROOM?'':(sessionStorage.getItem('tulpar_gateway_access')||'');
 let aiMode=localStorage.getItem('tulpar_ai_mode')||'auto';
 function setBadge(text){$('modelBadge').textContent=text||'● TULPAR CORE'}
-function syncGatewaySettings(){$('gatewayUrl').value=gateway;$('gatewayToken').value=accessToken;$('aiMode').value=aiMode;setBadge(gateway&&aiMode!=='local'?(CLASSROOM?'● CLASSROOM AI':'● AUTO MODELS'):'● TULPAR CORE')}
+// Public site: cloud needs the owner's token; students get cloud AI through the classroom (/join → /app/).
+const CLOUD_HINT='Cloud AI тек класс оқушыларына қолжетімді: «🎓 Классқа қосылу» → Join Code. Немесе Параметрлерде Auto не Local режимін таңда.';
+function cloudReady(){return !!gateway&&(CLASSROOM||!!accessToken)}
+function syncGatewaySettings(){$('gatewayUrl').value=gateway;$('gatewayToken').value=accessToken;$('aiMode').value=aiMode;setBadge(cloudReady()&&aiMode!=='local'?(CLASSROOM?'● CLASSROOM AI':'● AUTO MODELS'):'● TULPAR CORE')}
 function setBusy(value){busy=value;$('stop').hidden=!value;$('sendButton').disabled=value;$('retryLast').hidden=value||ai.chat()?.messages.at(-1)?.role!=='assistant'}
 function stopReply(){inflightController?.abort()}
 $('stop').onclick=stopReply;
@@ -39,8 +44,9 @@ async function send(text){
  const chatId=ai.chat().id;
  const requestController=new AbortController();inflightController=requestController;
  setBusy(true);$('routeStatus').textContent='';$('prompt').value='';resize();$('welcome').hidden=true;
- ai.append('user',text);addBubble('user',text);
- const bubble=addBubble('assistant',t('thinking'));renderHistory();
+ ai.append('user',text);addBubble('user',text,Date.now());
+ const bubble=addBubble('assistant',t('thinking'),Date.now());renderHistory();
+ const row=bubble.parentElement;row.classList.add('projecting');
  function saveAssistant(answer){
   const chat=ai.chats.find(c=>c.id===chatId);
   if(!chat)return;
@@ -49,7 +55,7 @@ async function send(text){
  }
  let partial='';
  try{
-  const useCloud=aiMode!=='local'&&gateway;
+  const useCloud=aiMode!=='local'&&cloudReady();
   if(useCloud){
    try{
     const messages=(ai.chats.find(c=>c.id===chatId)?.messages||[]).slice(-20).map(({role,content})=>({role,content}));
@@ -60,7 +66,7 @@ async function send(text){
         $('routeStatus').textContent=`↪ ${names.join(' → ')} → ${route.provider}`;
        }else $('routeStatus').textContent=`✓ ${route.provider} · ${route.model}`;
       },
-      onDelta:delta=>{if(requestController.signal.aborted)return;partial+=delta;bubble.textContent=partial;$('conversation').scrollTop=$('conversation').scrollHeight}});
+      onDelta:delta=>{if(requestController.signal.aborted)return;row.classList.remove('projecting');partial+=delta;bubble.textContent=partial;$('conversation').scrollTop=$('conversation').scrollHeight}});
     if(requestController.signal.aborted)throw new DOMException('Aborted','AbortError');
     bubble.textContent=result.text;saveAssistant(result.text);return;
    }catch(error){
@@ -74,20 +80,20 @@ async function send(text){
     saveAssistant(bubble.textContent);setBadge('● LOCAL FALLBACK');$('routeStatus').textContent='↪ Local TULPAR Core';return;
    }
   }
-  if(aiMode==='cloud')throw Error('Cloud mode requires a gateway URL and access token in settings');
+  if(aiMode==='cloud')throw Error(CLOUD_HINT);
   const reply=await ai.reply(text);
   if(requestController.signal.aborted)throw new DOMException('Aborted','AbortError');
-  bubble.textContent=reply;saveAssistant(reply);setBadge('● TULPAR CORE');$('routeStatus').textContent='✓ Local TULPAR Core';
+  bubble.textContent=reply;saveAssistant(reply);setBadge('● TULPAR CORE');$('routeStatus').textContent=gateway&&!cloudReady()&&aiMode!=='local'?'✓ Local TULPAR Core · Cloud AI: 🎓 /join':'✓ Local TULPAR Core';
  }catch(e){
   const aborted=requestController.signal.aborted;
   bubble.textContent=aborted?(partial?partial+'\n\n⏹ Stopped by user':'⏹ Stopped by user'):'⚠ '+(e?.message||String(e));
   saveAssistant(bubble.textContent);
- }finally{inflightController=null;setBusy(false);$('conversation').scrollTop=$('conversation').scrollHeight}
+ }finally{row.classList.remove('projecting');inflightController=null;setBusy(false);$('conversation').scrollTop=$('conversation').scrollHeight}
 }
 
 function resize(){const n=$('prompt');n.style.height='auto';n.style.height=Math.min(n.scrollHeight,145)+'px'}
 $('composer').addEventListener('submit',e=>{e.preventDefault();send()});$('prompt').addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();send()}});$('prompt').addEventListener('input',resize);
-$('newChat').onclick=()=>{stopReply();ai.newChat();render();closeSidebar();$('prompt').focus()};$('lang').onchange=e=>{ai.preferred=e.target.value;ai.persist();setLanguage()};document.querySelectorAll('.suggestions button').forEach(b=>b.onclick=()=>send(b.dataset.prompt));document.querySelectorAll('.quick-start-card').forEach(b=>b.onclick=()=>send(b.dataset.prompt));
+$('newChat').onclick=()=>{stopReply();ai.newChat();render();closeSidebar();clapper();$('prompt').focus()};$('lang').onchange=e=>{ai.preferred=e.target.value;ai.persist();setLanguage()};document.querySelectorAll('.suggestions button').forEach(b=>b.onclick=()=>send(b.dataset.prompt));document.querySelectorAll('.quick-start-card').forEach(b=>b.onclick=()=>send(b.dataset.prompt));
 function closeSidebar(){$('sidebar').classList.remove('open');$('overlay').classList.remove('active')}$('menu').onclick=()=>{$('sidebar').classList.add('open');$('overlay').classList.add('active')};$('closeSidebar').onclick=closeSidebar;$('overlay').onclick=closeSidebar;
 let light=localStorage.getItem('tulpar_theme')==='light';function setTheme(){document.body.classList.toggle('light',light);$('theme').textContent=light?'☀':'☾'}$('theme').onclick=()=>{light=!light;localStorage.setItem('tulpar_theme',light?'light':'dark');setTheme()};setTheme();
 $('settingsOpen').onclick=()=>{$('settingsModal').hidden=false;closeSidebar();updateStats();syncGatewaySettings()};$('settingsClose').onclick=()=>{$('settingsModal').hidden=true};$('settingsModal').addEventListener('click',e=>{if(e.target===$('settingsModal'))$('settingsModal').hidden=true});
@@ -144,14 +150,41 @@ function setupClassroom(){
 if(CLASSROOM)setupClassroom();
 setLanguage();render();syncGatewaySettings();
 // Cinema opening: plays once per session on the title frame; click "skip", Esc or any key ends it.
+const reduceMotion=matchMedia('(prefers-reduced-motion: reduce)').matches;
+// Clapperboard when a new scene (chat) starts.
+function clapper(){
+ if(reduceMotion)return;document.querySelector('.clapper')?.remove();
+ const n=String(ai.chats.length).padStart(2,'0'),d=new Date();
+ const c=elt('div','clapper');c.setAttribute('aria-hidden','true');
+ const board=elt('div','board');board.append(elt('div','sticks'));
+ const grid=elt('div','slate');
+ for(const [k,v] of [['СЦЕНА',n],['ДУБЛЬ','1'],['ФИЛЬМ','TULPAR AI'],['КҮНІ',d.toLocaleDateString('kk-KZ')]]){const cell=elt('div','');cell.append(elt('small','',k),elt('b','',v));grid.append(cell)}
+ board.append(grid);c.append(board);document.body.append(c);
+ c.addEventListener('animationend',e=>{if(e.target===c)c.remove()});setTimeout(()=>c.remove(),2000);
+}
+// Running film timecode (24 fps) on the title frame.
+(function liveTimecode(){
+ const tc=document.querySelector('.eyebrow .tc');if(!tc||reduceMotion)return;
+ const t0=performance.now(),f=n=>String(n).padStart(2,'0');let last=-1;
+ (function tick(now){const fr=Math.floor((now-t0)/1000*24);if(fr!==last&&!$('welcome').hidden){last=fr;const s=Math.floor(fr/24);tc.textContent=`${f(Math.floor(s/3600))}:${f(Math.floor(s/60)%60)}:${f(s%60)}:${f(fr%24)}`}requestAnimationFrame(tick)})(t0);
+})();
+// End credits roll.
+(function credits(){
+ const box=$('credits'),roll=$('creditsRoll');
+ const close=()=>{box.hidden=true;document.removeEventListener('keydown',esc)};
+ const esc=e=>{if(e.key==='Escape')close()};
+ $('creditsOpen').onclick=()=>{closeSidebar();box.hidden=false;roll.style.animation='none';void roll.offsetWidth;roll.style.animation='';$('creditsClose').focus();document.addEventListener('keydown',esc)};
+ $('creditsClose').onclick=close;box.addEventListener('click',e=>{if(e.target===box)close()});
+ roll.addEventListener('animationend',close);
+ if(CLASSROOM)fetch('/api/me',{credentials:'same-origin'}).then(r=>r.json()).then(me=>{if(me.name)$('creditsStar').textContent=me.name+' · '+me.className}).catch(()=>{});
+})();
 (function cinema(){
  const w=$('welcome');let seen=false;try{seen=sessionStorage.getItem('tulpar_reel')==='1'}catch{}
- const reduce=matchMedia('(prefers-reduced-motion: reduce)').matches;
  const end=()=>{w.classList.remove('playing');w.classList.add('still')};
- if(seen||reduce||w.hidden){end();return}
+ if(seen||reduceMotion||w.hidden){end();return}
  try{sessionStorage.setItem('tulpar_reel','1')}catch{}
  w.classList.add('playing');
  $('skipReel').onclick=end;
  const key=()=>{end();removeEventListener('keydown',key)};addEventListener('keydown',key);
- setTimeout(end,7000);
+ setTimeout(end,9500);
 })();
