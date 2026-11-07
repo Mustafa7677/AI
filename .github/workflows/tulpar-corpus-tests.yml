@@ -7,7 +7,10 @@ on:
       - 'scripts/prepare_original_lessons.py'
       - 'scripts/lecture_retrieval.py'
       - 'scripts/build_lecture_index.py'
+      - 'scripts/grounded_mentor.py'
+      - 'scripts/train_lecture_classifier.py'
       - 'tests/test_lecture_*.py'
+      - 'tests/test_grounded_mentor.py'
       - '.github/workflows/tulpar-corpus-tests.yml'
 jobs:
   test:
@@ -20,4 +23,4 @@ jobs:
         with:
           python-version: '3.11'
       - name: Run corpus and retrieval tests
-        run: python -m unittest discover -s tests -p 'test_lecture_*.py' -v
+        run: python -m unittest discover -s tests -p 'test_*.py' -v
