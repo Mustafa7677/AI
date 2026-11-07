@@ -1,0 +1,38 @@
+name: Train TULPAR neural baseline
+on:
+  push:
+    branches: [feature/tulpar-training-integration]
+    paths:
+      - 'scripts/train_neural_mentor.py'
+      - '.github/workflows/tulpar-neural-train.yml'
+  workflow_dispatch:
+jobs:
+  train:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: Mustafa7677/CS50MUSS
+          path: author-lessons
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install CPU PyTorch
+        run: pip install --index-url https://download.pytorch.org/whl/cpu torch
+      - name: Extract author's 16 original lectures
+        run: python scripts/prepare_original_lessons.py author-lessons --output data/original_lessons.jsonl
+      - name: Train neural model and evaluate held-out weeks
+        run: python scripts/train_neural_mentor.py --corpus data/original_lessons.jsonl --epochs 30
+      - name: Upload actual trained weights and evaluation
+        uses: actions/upload-artifact@v4
+        with:
+          name: tulpar-neural-baseline
+          path: |
+            data/tulpar_neural_classifier.pt
+            data/neural_metrics.json
+          retention-days: 30
