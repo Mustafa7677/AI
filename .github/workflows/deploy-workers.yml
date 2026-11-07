@@ -35,13 +35,20 @@ jobs:
           if [ -z "$CF_TOKEN" ] || [ -z "$CF_ACCOUNT" ]; then
             echo "::notice::CLOUDFLARE_API_TOKEN / CLOUDFLARE_ACCOUNT_ID not set; skipping deploy."; exit 0
           fi
+          # Pasted secrets often carry spaces/newlines; strip them before building the URL.
+          CF_TOKEN=$(printf %s "$CF_TOKEN" | tr -d '[:space:]')
+          CF_ACCOUNT=$(printf %s "$CF_ACCOUNT" | tr -d '[:space:]')
+          if ! printf %s "$CF_ACCOUNT" | grep -Eq '^[0-9a-fA-F]{32}$'; then
+            echo "::error::CLOUDFLARE_ACCOUNT_ID must be the 32-character Account ID (Cloudflare dashboard → Workers & Pages → right sidebar), not an email, name or URL. Current length: ${#CF_ACCOUNT}."; exit 1
+          fi
           deploy() { # script-name file
             name=$(basename "$2")
             curl -sS --fail-with-body -X PUT \
               "https://api.cloudflare.com/client/v4/accounts/$CF_ACCOUNT/workers/scripts/$1/content" \
               -H "Authorization: Bearer $CF_TOKEN" \
               -F "metadata={\"main_module\":\"$name\"};type=application/json" \
-              -F "$name=@$2;filename=$name;type=application/javascript+module" > /dev/null
+              -F "$name=@$2;filename=$name;type=application/javascript+module" -o /tmp/cf.json \
+              || { echo "::error::Cloudflare rejected the upload:"; cat /tmp/cf.json; exit 1; }
             echo "Deployed $1"
           }
           deploy tulpar-classroom classroom/worker.mjs
