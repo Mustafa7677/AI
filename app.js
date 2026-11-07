@@ -25,7 +25,10 @@ let gateway=CLASSROOM?location.origin:(localStorage.getItem('tulpar_gateway_url'
 let accessToken=CLASSROOM?'':(sessionStorage.getItem('tulpar_gateway_access')||'');
 let aiMode=localStorage.getItem('tulpar_ai_mode')||'auto';
 function setBadge(text){$('modelBadge').textContent=text||'● TULPAR CORE'}
-function syncGatewaySettings(){$('gatewayUrl').value=gateway;$('gatewayToken').value=accessToken;$('aiMode').value=aiMode;setBadge(gateway&&aiMode!=='local'?(CLASSROOM?'● CLASSROOM AI':'● AUTO MODELS'):'● TULPAR CORE')}
+// Public site: cloud needs the owner's token; students get cloud AI through the classroom (/join → /app/).
+const CLOUD_HINT='Cloud AI тек класс оқушыларына қолжетімді: «🎓 Классқа қосылу» → Join Code. Немесе Параметрлерде Auto не Local режимін таңда.';
+function cloudReady(){return !!gateway&&(CLASSROOM||!!accessToken)}
+function syncGatewaySettings(){$('gatewayUrl').value=gateway;$('gatewayToken').value=accessToken;$('aiMode').value=aiMode;setBadge(cloudReady()&&aiMode!=='local'?(CLASSROOM?'● CLASSROOM AI':'● AUTO MODELS'):'● TULPAR CORE')}
 function setBusy(value){busy=value;$('stop').hidden=!value;$('sendButton').disabled=value;$('retryLast').hidden=value||ai.chat()?.messages.at(-1)?.role!=='assistant'}
 function stopReply(){inflightController?.abort()}
 $('stop').onclick=stopReply;
@@ -52,7 +55,7 @@ async function send(text){
  }
  let partial='';
  try{
-  const useCloud=aiMode!=='local'&&gateway;
+  const useCloud=aiMode!=='local'&&cloudReady();
   if(useCloud){
    try{
     const messages=(ai.chats.find(c=>c.id===chatId)?.messages||[]).slice(-20).map(({role,content})=>({role,content}));
@@ -77,10 +80,10 @@ async function send(text){
     saveAssistant(bubble.textContent);setBadge('● LOCAL FALLBACK');$('routeStatus').textContent='↪ Local TULPAR Core';return;
    }
   }
-  if(aiMode==='cloud')throw Error('Cloud mode requires a gateway URL and access token in settings');
+  if(aiMode==='cloud')throw Error(CLOUD_HINT);
   const reply=await ai.reply(text);
   if(requestController.signal.aborted)throw new DOMException('Aborted','AbortError');
-  bubble.textContent=reply;saveAssistant(reply);setBadge('● TULPAR CORE');$('routeStatus').textContent='✓ Local TULPAR Core';
+  bubble.textContent=reply;saveAssistant(reply);setBadge('● TULPAR CORE');$('routeStatus').textContent=gateway&&!cloudReady()&&aiMode!=='local'?'✓ Local TULPAR Core · Cloud AI: 🎓 /join':'✓ Local TULPAR Core';
  }catch(e){
   const aborted=requestController.signal.aborted;
   bubble.textContent=aborted?(partial?partial+'\n\n⏹ Stopped by user':'⏹ Stopped by user'):'⚠ '+(e?.message||String(e));

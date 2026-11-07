@@ -250,3 +250,15 @@ body.light .welcome::after{opacity:.35;filter:invert(.8)}
 @media(max-width:760px){.message.assistant[data-tc]::after{left:0}.horizon{height:34px}.scene.dala{aspect-ratio:4/3}}
 @media(prefers-reduced-motion:reduce){.welcome::before,.welcome::after,.message.projecting .avatar,.message.projecting .content{animation:none}.roll{animation:none;transform:none;padding-top:12vh}.credits{overflow:auto}}
 .conversation{overflow-x:hidden}
+
+/* ═══ v3: Тұлпар — жеті қазынаның бірі ═══ */
+.hero-emblem .tulpar-mark{width:92%;height:auto;color:var(--gold);--cut:#100b06;filter:drop-shadow(0 0 10px #d4a84b55)}
+.light .hero-emblem .tulpar-mark{--cut:#efe6cf}
+.dala .flyer{color:#120b05;--cut:#5a3a18}
+.welcome.playing .dala .flyer{animation:gallop 1.9s 1.2s cubic-bezier(.3,.1,.3,1) both}
+@keyframes gallop{0%{transform:translate(-330px,60px)}55%{transform:translate(-40px,0)}100%{transform:translate(260px,-40px)}}
+.dala p small{display:block;margin-top:10px;font:italic clamp(12px,1.6vw,16px) var(--serif);letter-spacing:.08em;color:#efe4cc;text-transform:none}
+.roll .treasures{font-size:18px;line-height:1.9}
+.roll .treasures b{color:#f0d58c;font-size:22px}
+.cr-tulpar{display:block;width:180px;margin:50px auto 0;color:#d4a84b;--cut:#050403}
+@media(prefers-reduced-motion:reduce){.dala .flyer{transform:none}}

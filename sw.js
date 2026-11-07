@@ -1,5 +1,5 @@
 /* Network-first navigation prevents a stale install or a cached 404 from masking deployment updates. */
-const CACHE='tulpar-core-v6';
+const CACHE='tulpar-core-v7';
 const PRECACHE=['./','./index.html','./styles.css','./app.js','./core.mjs','./gateway-client.mjs','./backup.mjs','./icon.svg','./manifest.webmanifest'];
 self.addEventListener('install',event=>{
  event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(PRECACHE)));
