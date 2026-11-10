@@ -1,0 +1,27 @@
+name: TULPAR corpus and retrieval tests
+on:
+  push:
+    branches: [feature/tulpar-training-integration]
+  pull_request:
+    paths:
+      - 'scripts/prepare_original_lessons.py'
+      - 'scripts/lecture_retrieval.py'
+      - 'scripts/build_lecture_index.py'
+      - 'scripts/grounded_mentor.py'
+      - 'scripts/multilingual_queries.py'
+      - 'scripts/train_lecture_classifier.py'
+      - 'tests/test_lecture_*.py'
+      - 'tests/test_grounded_mentor.py'
+      - '.github/workflows/tulpar-corpus-tests.yml'
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Run corpus and retrieval tests
+        run: python -m unittest discover -s tests -p 'test_*.py' -v

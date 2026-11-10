@@ -1,0 +1,39 @@
+{
+  "task": "C++ vs Java language classification, not generative AI",
+  "source": "16 original CS50MUSS lecture HTML files fetched via GitHub",
+  "split": "holdout weeks 1 and 5 for both languages",
+  "training_docs": 12,
+  "test_docs": 4,
+  "accuracy": 1,
+  "predictions": [
+    {
+      "source": "cpp/lectures/week-1.html",
+      "predicted": "cpp",
+      "correct": true,
+      "word_count": 6233
+    },
+    {
+      "source": "cpp/lectures/week-5.html",
+      "predicted": "cpp",
+      "correct": true,
+      "word_count": 7006
+    },
+    {
+      "source": "java/lectures/week-1.html",
+      "predicted": "java",
+      "correct": true,
+      "word_count": 5912
+    },
+    {
+      "source": "java/lectures/week-5.html",
+      "predicted": "java",
+      "correct": true,
+      "word_count": 6023
+    }
+  ],
+  "train_token_counts": {
+    "cpp": 39421,
+    "java": 36273
+  },
+  "vocabulary_size": 10742
+}
